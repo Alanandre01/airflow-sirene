@@ -22,3 +22,10 @@ airflow.db
 seeds/
 .claude/
 CLAUDE.md
+
+# Airflow
+config/airflow.cfg
+config/webserver_config.py
+
+# Docker
+.dockerignore
