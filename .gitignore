@@ -20,6 +20,7 @@ venv.bak/
 airflow.db
 
 seeds/
+keys/
 .claude/
 CLAUDE.md
 
