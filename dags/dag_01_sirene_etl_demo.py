@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
     catchup=False,
     default_args={
         "retries": 2,
-        "retry_delay": timedelta(minutes=5),
+        "retry_delay": timedelta(seconds=30),
     },
     tags=["sirene", "xcom", "s1"],
     doc_md="""

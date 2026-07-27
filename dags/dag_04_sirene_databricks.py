@@ -18,7 +18,7 @@ default_args = {
     "owner": "alan",
     "depends_on_past": False,
     "retries": 1,
-    "retry_delay": timedelta(minutes=5),
+    "retry_delay": timedelta(seconds=30),
     "email_on_failure": False,
 }
 

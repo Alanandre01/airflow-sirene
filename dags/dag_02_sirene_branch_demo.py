@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
     catchup=False,
     default_args={
         "retries": 1,
-        "retry_delay": timedelta(minutes=5),
+        "retry_delay": timedelta(seconds=30),
     },
     tags=["sirene", "branch", "s1"],
     doc_md="""
