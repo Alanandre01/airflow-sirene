@@ -90,6 +90,7 @@ x-airflow-common:
     - ${AIRFLOW_PROJ_DIR:-.}/config:/opt/airflow/config
     - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins
     - ${AIRFLOW_PROJ_DIR:-.}/keys:/opt/airflow/keys:ro
+    - ${AIRFLOW_PROJ_DIR:-.}/tests:/opt/airflow/tests
     - C:/Users/alana/Documents/de-leaning/sirene_nantes:/opt/airflow/dbt/sirene_nantes
     - ${DBT_HOME}:/opt/airflow/.dbt
   user: "${AIRFLOW_UID:-50000}:0"

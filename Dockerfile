@@ -14,5 +14,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
        "apache-airflow-providers-databricks==7.15.0" \
        dbt-core \
        dbt-snowflake \
+       pytest \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*

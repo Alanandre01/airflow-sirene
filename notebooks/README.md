@@ -10,6 +10,7 @@ Pipeline analytique SIRENE Loire-Atlantique - PySpark + Delta Lake sur Databrick
 | `02_transformations_sirene.ipynb` | `clean_nd`, filtres RGPD (Art.25), colonnes dérivées | 134 661 (clean) |
 | `03_delta_lake_sirene.ipynb` | WRITE, MERGE, Time Travel, Schema evolution, Widgets Databricks | 134 666 (avec upserts) |
 | `04_pyspark_avance_sirene.ipynb` | S3 (boto3), Window functions, Broadcast join | 680 (grain commune×NAF) |
+| `05_pyspark_optimisation_sirene.ipynb` | Partition/pushed filters, column pruning, DESCRIBE DETAIL/HISTORY, OPTIMIZE, ZORDER BY | — (réorganisation physique, pas de nouvelles lignes) |
 
 ## Stack technique
 
