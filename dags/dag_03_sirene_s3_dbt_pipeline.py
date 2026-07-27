@@ -24,7 +24,7 @@ def _dbt(cmd: str) -> str:
     catchup=False,
     default_args={
         "retries": 1,
-        "retry_delay": timedelta(minutes=5),
+        "retry_delay": timedelta(seconds=30),
     },
     tags=["sirene", "pipeline", "s1-m3"],
     doc_md="""
@@ -58,15 +58,17 @@ def sirene_s3_dbt_pipeline():
     )
 
     # 3 ── dbt run ─────────────────────────────────────────────────────
+    # Sélection explicite des 3 layers du projet (staging/intermediate/marts)
+    DBT_SELECT = "--select path:models/staging path:models/intermediate path:models/marts"
     dbt_run = BashOperator(
         task_id="dbt_run",
-        bash_command=_dbt("run"),
+        bash_command=_dbt(f"run {DBT_SELECT}"),
     )
 
     # 4 ── dbt test ────────────────────────────────────────────────────
     dbt_test = BashOperator(
         task_id="dbt_test",
-        bash_command=_dbt("test"),
+        bash_command=_dbt(f"test {DBT_SELECT}"),
     )
 
     # ─── Dependencies ─────────────────────────────────────────────────
