@@ -1,34 +1,29 @@
-# Notebooks PySpark
+# Notebooks Databricks - M3 SIRENE
 
-Pipeline analytique SIRENE Loire-Atlantique - PySpark + Delta Lake sur Databricks Free Edition (Azure).
+Notebooks PySpark / Delta Lake / Delta Live Tables / MLflow sur Databricks Free Edition (Azure, serverless).
 
-## Structure
+## Contenu
 
-| Notebook | Rôle | Lignes en sortie |
-|---|---|---|
-| `01_exploration_sirene.ipynb` | Lecture CSV brut, schéma, distributions | 420 411 (brut) |
-| `02_transformations_sirene.ipynb` | `clean_nd`, filtres RGPD (Art.25), colonnes dérivées | 134 661 (clean) |
-| `03_delta_lake_sirene.ipynb` | WRITE, MERGE, Time Travel, Schema evolution, Widgets Databricks | 134 666 (avec upserts) |
-| `04_pyspark_avance_sirene.ipynb` | S3 (boto3), Window functions, Broadcast join | 680 (grain commune×NAF) |
-| `05_pyspark_optimisation_sirene.ipynb` | Partition/pushed filters, column pruning, DESCRIBE DETAIL/HISTORY, OPTIMIZE, ZORDER BY | — (réorganisation physique, pas de nouvelles lignes) |
+| # | Fichier | Thème | Exécutable |
+|---|---------|-------|------------|
+| 01 | `01_exploration_sirene.ipynb` | Exploration CSV SIRENE (420 411 lignes, 107 colonnes) | ✅ |
+| 02 | `02_transformations_sirene.ipynb` | Nettoyage PySpark : rename_map, clean_nd, filtres RGPD | ✅ |
+| 03 | `03_delta_lake_sirene.ipynb` | Delta Lake : WRITE / MERGE / Time Travel / Schema Evolution | ✅ |
+| 04 | `04_pyspark_avance_sirene.ipynb` | Window functions, broadcast join, Spark SQL | ✅ |
+| 05 | `05_pyspark_optimisation_sirene.ipynb` | OPTIMIZE, ZORDER, VACUUM, .explain(), Photon, AQE | ✅ |
+| 06 | `transformations/` (bronze/silver/gold) | Pipeline Delta Live Tables - Auto Loader, expectations, agrégat | ✅ Pipeline DLT |
+| 07 | `07_mlflow_intro.ipynb` | MLflow experiment tracking sur `sirene_clean_delta` | ✅ |
 
-## Stack technique
+## Notes
 
-- **PySpark 3.5** - DataFrame API, Window functions, Broadcast join
-- **Delta Lake** - ACID, MERGE upsert, Time Travel, Schema evolution
-- **Databricks Free Edition** - Compute serverless, Unity Catalog Volumes
-- **Données** - SIRENE data.gouv.fr, Loire-Atlantique (44), 420 411 établissements
+- Notebooks 01–05, 07 : exécutables en notebook classique (serverless compute Databricks).
+- `transformations/` : pipeline **Delta Live Tables** déclaratif (Workflows → Delta Live Tables), pas un notebook - trois fichiers Python décorés `@dp.table` / `@dp.materialized_view` :
+  - `bronze/sirene_raw.py` - ingestion incrémentale via Auto Loader (`cloudFiles`) depuis `/Volumes/workspace/default/raw_data/sirene/`, renommage des colonnes SIRENE.
+  - `silver/sirene_clean.py` - lecture streaming de bronze, contraintes de qualité (`@dp.expect_or_drop` : dédiffusion RGPD, établissements actifs uniquement).
+  - `gold/sirene_par_commune.py` - vue matérialisée batch (`spark.read.table`), agrégat nb d'établissements par commune/catégorie.
+- Notebook 07 : MLflow pré-installé dans Databricks Free Edition, tracking URI automatique.
 
-## Intégration pipeline
+## Données source
 
-Le notebook `03_delta_lake_sirene` est exposé comme **Databricks Job** (`sirene_spark_transform`).
-Il accepte deux paramètres Widgets injectés par Airflow (`DatabricksRunNowOperator`) :
-- `env` - environnement cible (`dev` / `prod`)
-- `date_partition` - partition de données à traiter (`YYYY-MM`)
-
-## Tables Delta produites
-
-| Table | Chemin Volumes | Partitions |
-|---|---|---|
-| `sirene_clean_delta` | `/Volumes/workspace/default/raw_data/sirene_clean_delta` | `categorie_entreprise` |
-| `sirene_analytique_delta` | `/Volumes/workspace/default/raw_data/sirene_analytique_delta` | `code_departement` |
+Table Delta : `/Volumes/workspace/default/raw_data/sirene_clean_delta`
+134 666 lignes · 28 colonnes · partitionné par `categorie_entreprise`
