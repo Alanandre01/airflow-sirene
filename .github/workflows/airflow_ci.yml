@@ -1,0 +1,82 @@
+name: Airflow DAGs CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  validate-dags:
+    runs-on: ubuntu-latest
+    env:
+      AIRFLOW_HOME: /tmp/airflow_ci
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Airflow + providers
+        run: |
+          pip install "apache-airflow>=3.0.0" \
+            apache-airflow-providers-snowflake \
+            apache-airflow-providers-amazon \
+            apache-airflow-providers-databricks \
+            apache-airflow-providers-common-sql
+
+      - name: Validate DAG syntax (ast.parse)
+        run: |
+          python -c "
+          import os, ast
+          dag_dir = 'dags'
+          errors = []
+          for f in sorted(os.listdir(dag_dir)):
+              if f.endswith('.py'):
+                  try:
+                      ast.parse(open(f'{dag_dir}/{f}').read())
+                      print(f'SYNTAX OK   {f}')
+                  except SyntaxError as e:
+                      errors.append(f'{f}: {e}')
+                      print(f'SYNTAX ERR  {f}: {e}')
+          if errors:
+              raise SystemExit(f'{len(errors)} erreur(s) de syntaxe detectee(s)')
+          print('--- Tous les DAGs syntaxiquement valides ---')
+          "
+
+      - name: Validate operator imports
+        run: |
+          python -c "
+          # Ce step aurait detecte l'erreur SnowflakeOperator de M3-S3-J2
+          # Liste alignee sur les imports reels de dags/*.py (grep -h 'from airflow')
+          imports_to_check = [
+              ('airflow.decorators', 'dag'),
+              ('airflow.decorators', 'task'),
+              ('airflow.operators.bash', 'BashOperator'),
+              ('airflow.operators.python', 'PythonOperator'),
+              ('airflow.operators.python', 'BranchPythonOperator'),
+              ('airflow.operators.empty', 'EmptyOperator'),
+              ('airflow.providers.amazon.aws.sensors.s3', 'S3KeySensor'),
+              ('airflow.providers.common.sql.operators.sql', 'SQLExecuteQueryOperator'),
+              ('airflow.providers.databricks.operators.databricks', 'DatabricksRunNowOperator'),
+              ('airflow.providers.snowflake.hooks.snowflake', 'SnowflakeHook'),
+              ('airflow.utils.task_group', 'TaskGroup'),
+              ('airflow.models', 'Variable'),
+          ]
+          errors = []
+          for module, obj in imports_to_check:
+              try:
+                  mod = __import__(module, fromlist=[obj])
+                  getattr(mod, obj)
+                  print(f'IMPORT OK   from {module} import {obj}')
+              except (ImportError, AttributeError) as e:
+                  errors.append(f'{module}.{obj}: {e}')
+                  print(f'IMPORT ERR  from {module} import {obj}: {e}')
+          if errors:
+              raise SystemExit(f'{len(errors)} import(s) invalide(s)')
+          print('--- Tous les operateurs importables ---')
+          "
