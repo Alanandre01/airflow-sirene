@@ -94,20 +94,3 @@ docker compose exec airflow-apiserver python -m pytest /opt/airflow/tests/ -v --
 38 tests pytest de validation structurelle (`DagBag`) : absence d'erreurs d'import, DAGs
 attendus, tags, task_ids, dépendances, `max_active_runs`, TaskGroups dbt.
 
----
-
-## Conventions
-
-Commits : [Conventional Commits](https://www.conventionalcommits.org/) (`feat/fix/docs/chore/ci`)
-Branches : `main` (stable) · `develop` (en cours)
-
----
-
-## Argument entretien
-
-> "J'ai orchestré le pipeline SIRENE existant avec Airflow — le même pipeline
-> qui tourne déjà sur Snowflake avec dbt et Elementary depuis le Mois 2.
-> J'ai ajouté une couche PySpark sur Databricks pour le traitement distribué,
-> avec un DAG qui gère les retries et les callbacks d'erreur.
-> Le tout est validé par **38 tests pytest** et un CI GitHub Actions."
-
