@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 from airflow.decorators import dag
 from airflow.models import Variable
 from airflow.operators.bash import BashOperator
+from airflow.operators.python import PythonOperator
 from airflow.providers.amazon.aws.sensors.s3 import S3KeySensor
 from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator
 from airflow.providers.databricks.operators.databricks import DatabricksRunNowOperator
@@ -44,6 +45,103 @@ default_args = {
     "on_failure_callback": on_failure_alert,
     "email_on_failure": False,
 }
+
+
+def run_ge_checkpoint_sirene(**kwargs):
+    """
+    Valide les données SIRENE post-Snowpipe avec Great Expectations.
+    Blocage sélectif — miroir du pattern dbt severity: warn, classé par
+    (type d'expectation, colonne) et non par colonne seule :
+      FAIL warn (connus)  : CODE_POSTAL (~78% NULL), DATE_CREATION_ETAB (100% NULL),
+                            ETAT_ETABLISSEMENT null-check (~70-75% NULL, mostly=0.25)
+      FAIL bloquant       : SIRET, SIREN, ETAT_ETABLISSEMENT value-set -> AirflowException
+    Option B (Data Source SQL GE natif Snowflake) -> amélioration future.
+    """
+    import logging
+
+    import great_expectations as gx
+    from great_expectations.expectations import (
+        ExpectColumnValueLengthsToEqual,
+        ExpectColumnValuesToBeInSet,
+        ExpectColumnValuesToNotBeNull,
+    )
+    from airflow.exceptions import AirflowException
+    from airflow.providers.snowflake.hooks.snowflake import SnowflakeHook
+
+    # 1. Export frais — réutilise la connexion snowflake_sirene configurée dans Airflow
+    #    stg_sirene_etablissements est une VIEW dbt (materialized='view') : elle
+    #    reflète le RAW à jour immédiatement après le REFRESH Snowpipe, sans
+    #    attendre le run dbt_staging qui suit ce checkpoint dans la chaîne.
+    hook = SnowflakeHook(snowflake_conn_id=SNOWFLAKE_CONN)
+    df = hook.get_pandas_df(
+        """SELECT SIRET, SIREN, ETAT_ETABLISSEMENT, CODE_POSTAL, DATE_CREATION_ETAB
+           FROM ALAN_DW.DBT_DEV_STAGING.STG_SIRENE_ETABLISSEMENTS
+           LIMIT 10000"""
+    )
+    logging.info("GE: %d lignes exportées depuis DBT_DEV_STAGING.", len(df))
+
+    # 2. Contexte GE en mémoire — ephemeral, pas de montage du dossier gx/ requis
+    context = gx.get_context(mode="ephemeral")
+    ds = context.data_sources.add_pandas("sirene_pandas")
+    asset = ds.add_dataframe_asset("sirene_etablissements")
+    batch_def = asset.add_batch_definition_whole_dataframe("batch_frais")
+
+    # 3. Suite — valeurs réelles Snowflake : 'Actif'/'Fermé' (corrigé en J2)
+    suite = context.suites.add(gx.ExpectationSuite(name="sirene_suite_dag06"))
+    suite.add_expectation(ExpectColumnValueLengthsToEqual(column="SIRET", value=14))
+    suite.add_expectation(ExpectColumnValuesToNotBeNull(column="SIREN"))
+    suite.add_expectation(
+        ExpectColumnValuesToBeInSet(
+            column="ETAT_ETABLISSEMENT", value_set=["Actif", "Fermé"]
+        )
+    )
+    suite.add_expectation(
+        ExpectColumnValuesToNotBeNull(column="ETAT_ETABLISSEMENT", mostly=0.25)
+    )
+    suite.add_expectation(
+        ExpectColumnValuesToNotBeNull(column="CODE_POSTAL", mostly=0.25)  # FAIL connu
+    )
+    suite.add_expectation(
+        ExpectColumnValuesToNotBeNull(column="DATE_CREATION_ETAB")  # FAIL connu (100%)
+    )
+
+    # 4. Validation
+    vd = context.validation_definitions.add(
+        gx.ValidationDefinition(name="sirene_vd_dag06", data=batch_def, suite=suite)
+    )
+    result = vd.run(batch_parameters={"dataframe": df})
+    logging.info(
+        "GE: %d/%d expectations passées.",
+        sum(r.success for r in result.results),
+        len(result.results),
+    )
+
+    # 5. Blocage sélectif — anomalies connues en warn, échecs inattendus bloquants.
+    #    Classé par (type d'expectation, colonne) et non par colonne seule :
+    #    ETAT_ETABLISSEMENT porte à la fois le null-check toléré (mostly=0.25,
+    #    même anomalie ~70-75% NULL que CODE_POSTAL) et le expect_values_to_be_in_set
+    #    qui doit rester bloquant (une valeur hors ["Actif", "Fermé"] est un vrai défaut).
+    WARN_EXPECTATIONS = {
+        ("expect_column_values_to_not_be_null", "CODE_POSTAL"),
+        ("expect_column_values_to_not_be_null", "DATE_CREATION_ETAB"),
+        ("expect_column_values_to_not_be_null", "ETAT_ETABLISSEMENT"),
+    }
+    hard_fails, warn_fails = [], []
+    for r in result.results:
+        if not r.success:
+            col = r.expectation_config.kwargs.get("column", "inconnu")
+            etype = r.expectation_config.type
+            if (etype, col) in WARN_EXPECTATIONS:
+                warn_fails.append(col)
+            else:
+                hard_fails.append(f"{etype}[{col}]")
+    if warn_fails:
+        logging.warning("GE: FAIL(s) structurel(s) connu(s) — %s", warn_fails)
+    if hard_fails:
+        raise AirflowException(
+            f"GE Checkpoint: FAIL inattendu(s) — {hard_fails} — pipeline bloqué."
+        )
+    logging.info("GE Checkpoint OK — pipeline peut continuer vers dbt_staging.")
 
 
 @dag(
@@ -105,6 +203,18 @@ def dag_06_sirene_pipeline_v2():
         conn_id=SNOWFLAKE_CONN,
         sql=f"ALTER PIPE {PIPE_NAME} REFRESH;",
         execution_timeout=timedelta(minutes=10),
+    )
+
+    # ── 3bis. GE Checkpoint — qualité données post-Snowpipe ──────────────────
+    ge_checkpoint_sirene = PythonOperator(
+        task_id="ge_checkpoint_sirene",
+        python_callable=run_ge_checkpoint_sirene,
+        retries=0,  # quality gate : retry inutile si les données sont mauvaises
+        doc_md="""
+        **GE Checkpoint** — Validation données SIRENE post-Snowpipe.
+        FAIL bloquants : SIRET, SIREN, ETAT_ETABLISSEMENT.
+        FAIL warn (anomalies connues) : CODE_POSTAL, DATE_CREATION_ETAB.
+        """,
     )
 
     # ── 4. TaskGroup dbt staging + intermediate ──────────────────────────────
@@ -175,6 +285,7 @@ edr report --project-dir . {DBT_PROFILES} --profile-target dev \
         attendre_fichier_s3
         >> spark_transform_delta
         >> refresh_snowpipe
+        >> ge_checkpoint_sirene
         >> tg_staging
         >> tg_marts
         >> run_elementary_report

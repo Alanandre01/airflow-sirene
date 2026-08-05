@@ -143,7 +143,7 @@ class TestDag05:
 
 
 class TestDag06:
-    """Tests structurels de dag_06_sirene_pipeline_v2 (9 tâches)."""
+    """Tests structurels de dag_06_sirene_pipeline_v2 (10 tâches)."""
 
     @pytest.fixture(autouse=True)
     def setup(self, dagbag):
@@ -158,6 +158,7 @@ class TestDag06:
             "attendre_fichier_s3",
             "spark_transform_delta",
             "refresh_snowpipe",
+            "ge_checkpoint_sirene",
             "dbt_staging.run",
             "dbt_staging.test",
             "dbt_marts.run",
@@ -169,7 +170,20 @@ class TestDag06:
         assert not missing, f"Tâches manquantes dans dag_06 : {missing}"
 
     def test_task_count(self):
-        assert len(self.dag.tasks) == 9
+        assert len(self.dag.tasks) == 10
+
+    def test_ge_checkpoint_task_present(self):
+        task_ids = {t.task_id for t in self.dag.tasks}
+        assert "ge_checkpoint_sirene" in task_ids
+
+    def test_ge_checkpoint_between_refresh_and_staging(self):
+        """ge_checkpoint_sirene doit s'intercaler : refresh_snowpipe -> GE -> dbt_staging."""
+        refresh_task = self.dag.get_task("refresh_snowpipe")
+        ge_task = self.dag.get_task("ge_checkpoint_sirene")
+        assert ge_task.task_id in {t.task_id for t in refresh_task.downstream_list}
+        assert any(
+            t.task_id.startswith("dbt_staging.") for t in ge_task.downstream_list
+        )
 
     def test_weekly_schedule(self):
         """Lun-Ven 7h (pas mensuel comme dag_05)."""

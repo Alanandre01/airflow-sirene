@@ -15,5 +15,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
        dbt-core \
        dbt-snowflake \
        pytest \
+       great-expectations \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
