@@ -93,5 +93,17 @@ fluent_datasources:
           batch_complet:
             id: b10f9d06-1eae-4482-87d5-d4747db606d2
             partitioner:
+  sirene_dag06_pandas:
+    type: pandas
+    id: 13cad524-1928-4080-ad34-b8eeb0f05c99
+    assets:
+      sirene_df_live:
+        type: dataframe
+        id: 5ece692e-9e77-460d-8ca4-0bb43ac51640
+        batch_metadata: {}
+        batch_definitions:
+          batch_live:
+            id: 3b1d6152-62f2-4c1f-a35a-4994a2f4611d
+            partitioner:
 analytics_enabled:
 data_context_id: 5f72439d-7ce0-4aec-9325-a09b65218c9f

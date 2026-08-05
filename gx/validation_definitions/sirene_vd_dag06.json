@@ -1,0 +1,22 @@
+{
+  "data": {
+    "asset": {
+      "id": "5ece692e-9e77-460d-8ca4-0bb43ac51640",
+      "name": "sirene_df_live"
+    },
+    "batch_definition": {
+      "id": "3b1d6152-62f2-4c1f-a35a-4994a2f4611d",
+      "name": "batch_live"
+    },
+    "datasource": {
+      "id": "13cad524-1928-4080-ad34-b8eeb0f05c99",
+      "name": "sirene_dag06_pandas"
+    }
+  },
+  "id": "04dac817-1518-48cd-9efd-c96ee95dbf81",
+  "name": "sirene_vd_dag06",
+  "suite": {
+    "id": "07e87afb-0fca-41b6-8258-3b56f27efcc5",
+    "name": "sirene_suite_dag06"
+  }
+}

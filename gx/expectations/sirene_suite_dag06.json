@@ -1,0 +1,71 @@
+{
+  "expectations": [
+    {
+      "id": "abc8ddd1-d300-47e1-a47a-8f9bb20ef207",
+      "kwargs": {
+        "column": "SIRET",
+        "value": 14.0
+      },
+      "meta": {},
+      "severity": "critical",
+      "type": "expect_column_value_lengths_to_equal"
+    },
+    {
+      "id": "8c3e0b80-f6e4-47f6-aa5a-22ee3bf99444",
+      "kwargs": {
+        "column": "SIREN"
+      },
+      "meta": {},
+      "severity": "critical",
+      "type": "expect_column_values_to_not_be_null"
+    },
+    {
+      "id": "5cd85cef-10ed-4e87-829d-20d63ad64b00",
+      "kwargs": {
+        "column": "ETAT_ETABLISSEMENT",
+        "value_set": [
+          "Actif",
+          "Ferm\u00e9"
+        ]
+      },
+      "meta": {},
+      "severity": "critical",
+      "type": "expect_column_values_to_be_in_set"
+    },
+    {
+      "id": "dff57a37-9091-4bec-bf0d-ea542fe99356",
+      "kwargs": {
+        "column": "ETAT_ETABLISSEMENT",
+        "mostly": 0.25
+      },
+      "meta": {},
+      "severity": "critical",
+      "type": "expect_column_values_to_not_be_null"
+    },
+    {
+      "id": "612eaf86-6a21-438c-94ef-3c1e00db830b",
+      "kwargs": {
+        "column": "CODE_POSTAL",
+        "mostly": 0.25
+      },
+      "meta": {},
+      "severity": "critical",
+      "type": "expect_column_values_to_not_be_null"
+    },
+    {
+      "id": "14489ad8-f95d-4245-b4b9-cc608414bb72",
+      "kwargs": {
+        "column": "DATE_CREATION_ETAB"
+      },
+      "meta": {},
+      "severity": "critical",
+      "type": "expect_column_values_to_not_be_null"
+    }
+  ],
+  "id": "07e87afb-0fca-41b6-8258-3b56f27efcc5",
+  "meta": {
+    "great_expectations_version": "1.19.1"
+  },
+  "name": "sirene_suite_dag06",
+  "notes": null
+}

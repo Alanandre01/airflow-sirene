@@ -56,10 +56,19 @@ def run_ge_checkpoint_sirene(**kwargs):
                             ETAT_ETABLISSEMENT null-check (~70-75% NULL, mostly=0.25)
       FAIL bloquant       : SIRET, SIREN, ETAT_ETABLISSEMENT value-set -> AirflowException
     Option B (Data Source SQL GE natif Snowflake) -> amélioration future.
+
+    Mode file (M4-S1-J5) — remplace l'ephemeral de J4 : contexte persisté sur
+    ./gx (monté en volume Docker, cf. docker-compose.yaml) pour générer des
+    Data Docs consultables entre deux runs, via UpdateDataDocsAction câblée
+    sur le Checkpoint. Les objets GE (datasource/suite/VD/checkpoint) utilisent
+    des noms *_dag06 dédiés pour ne pas entrer en collision avec ceux créés par
+    scripts/create_suite.py et scripts/create_checkpoint.py (J2-J3) dans le
+    même dossier gx/.
     """
     import logging
 
     import great_expectations as gx
+    from great_expectations.checkpoint.actions import UpdateDataDocsAction
     from great_expectations.expectations import (
         ExpectColumnValueLengthsToEqual,
         ExpectColumnValuesToBeInSet,
@@ -67,6 +76,12 @@ def run_ge_checkpoint_sirene(**kwargs):
     )
     from airflow.exceptions import AirflowException
     from airflow.providers.snowflake.hooks.snowflake import SnowflakeHook
+
+    # GX_ROOT = parent du dossier gx/ monté (/opt/airflow/gx), PAS gx/ lui-même :
+    # project_root_dir="/opt/airflow/gx" ferait chercher GE dans
+    # /opt/airflow/gx/gx/great_expectations.yml (contexte vide, doublon) — vérifié
+    # empiriquement, même pattern que PROJECT_ROOT dans scripts/create_checkpoint.py.
+    GX_ROOT = "/opt/airflow"
 
     # 1. Export frais — réutilise la connexion snowflake_sirene configurée dans Airflow
     #    stg_sirene_etablissements est une VIEW dbt (materialized='view') : elle
@@ -80,40 +95,84 @@ def run_ge_checkpoint_sirene(**kwargs):
     )
     logging.info("GE: %d lignes exportées depuis DBT_DEV_STAGING.", len(df))
 
-    # 2. Contexte GE en mémoire — ephemeral, pas de montage du dossier gx/ requis
-    context = gx.get_context(mode="ephemeral")
-    ds = context.data_sources.add_pandas("sirene_pandas")
-    asset = ds.add_dataframe_asset("sirene_etablissements")
-    batch_def = asset.add_batch_definition_whole_dataframe("batch_frais")
+    # 2. Contexte GE file-mode — charge/initialise gx/great_expectations.yml
+    context = gx.get_context(mode="file", project_root_dir=GX_ROOT)
 
-    # 3. Suite — valeurs réelles Snowflake : 'Actif'/'Fermé' (corrigé en J2)
-    suite = context.suites.add(gx.ExpectationSuite(name="sirene_suite_dag06"))
-    suite.add_expectation(ExpectColumnValueLengthsToEqual(column="SIRET", value=14))
-    suite.add_expectation(ExpectColumnValuesToNotBeNull(column="SIREN"))
-    suite.add_expectation(
-        ExpectColumnValuesToBeInSet(
-            column="ETAT_ETABLISSEMENT", value_set=["Actif", "Fermé"]
+    # 3. Datasource/asset/batch def dédiés dag06 — get_or_add (idempotent)
+    DS_NAME = "sirene_dag06_pandas"
+    try:
+        ds = context.data_sources.get(DS_NAME)
+    except Exception:
+        ds = context.data_sources.add_pandas(DS_NAME)
+    try:
+        asset = ds.get_asset("sirene_df_live")
+    except Exception:
+        asset = ds.add_dataframe_asset("sirene_df_live")
+    try:
+        batch_def = asset.get_batch_definition("batch_live")
+    except Exception:
+        batch_def = asset.add_batch_definition_whole_dataframe("batch_live")
+
+    # 4. Suite — valeurs réelles Snowflake : 'Actif'/'Fermé' (corrigé en J2) — get_or_add
+    SUITE_NAME = "sirene_suite_dag06"
+    try:
+        suite = context.suites.get(SUITE_NAME)
+    except Exception:
+        suite = context.suites.add(gx.ExpectationSuite(name=SUITE_NAME))
+        suite.add_expectation(ExpectColumnValueLengthsToEqual(column="SIRET", value=14))
+        suite.add_expectation(ExpectColumnValuesToNotBeNull(column="SIREN"))
+        # Value-set volontairement STRICT (pas de mostly) : une valeur hors
+        # ["Actif", "Fermé"] est un vrai défaut, contrairement au null-check
+        # ETAT_ETABLISSEMENT ci-dessous qui tolère l'anomalie NULL connue.
+        suite.add_expectation(
+            ExpectColumnValuesToBeInSet(
+                column="ETAT_ETABLISSEMENT", value_set=["Actif", "Fermé"]
+            )
         )
-    )
-    suite.add_expectation(
-        ExpectColumnValuesToNotBeNull(column="ETAT_ETABLISSEMENT", mostly=0.25)
-    )
-    suite.add_expectation(
-        ExpectColumnValuesToNotBeNull(column="CODE_POSTAL", mostly=0.25)  # FAIL connu
-    )
-    suite.add_expectation(
-        ExpectColumnValuesToNotBeNull(column="DATE_CREATION_ETAB")  # FAIL connu (100%)
-    )
+        suite.add_expectation(
+            ExpectColumnValuesToNotBeNull(column="ETAT_ETABLISSEMENT", mostly=0.25)
+        )
+        suite.add_expectation(
+            ExpectColumnValuesToNotBeNull(column="CODE_POSTAL", mostly=0.25)  # FAIL connu
+        )
+        suite.add_expectation(
+            ExpectColumnValuesToNotBeNull(column="DATE_CREATION_ETAB")  # FAIL connu (100%)
+        )
 
-    # 4. Validation
-    vd = context.validation_definitions.add(
-        gx.ValidationDefinition(name="sirene_vd_dag06", data=batch_def, suite=suite)
-    )
-    result = vd.run(batch_parameters={"dataframe": df})
+    # 5. ValidationDefinition — get_or_add
+    VD_NAME = "sirene_vd_dag06"
+    try:
+        vd = context.validation_definitions.get(VD_NAME)
+    except Exception:
+        vd = context.validation_definitions.add(
+            gx.ValidationDefinition(name=VD_NAME, data=batch_def, suite=suite)
+        )
+
+    # 6. Checkpoint avec UpdateDataDocsAction — get_or_add
+    CP_NAME = "sirene_checkpoint_dag06"
+    try:
+        checkpoint = context.checkpoints.get(CP_NAME)
+    except Exception:
+        checkpoint = context.checkpoints.add(
+            gx.Checkpoint(
+                name=CP_NAME,
+                validation_definitions=[vd],
+                actions=[UpdateDataDocsAction(name="update_data_docs")],
+            )
+        )
+
+    # 7. Run → UpdateDataDocsAction régénère les Data Docs automatiquement
+    #    CheckpointResult n'expose PAS .results (contrairement au résultat de
+    #    vd.run() en ephemeral) — seulement .run_results, un dict {validation_result_identifier:
+    #    ValidationResult}. Un seul ValidationDefinition ici -> un seul run_result.
+    #    Vérifié empiriquement en GE 1.19.1 (create_checkpoint.py J3 utilise le même accès).
+    checkpoint_result = checkpoint.run(batch_parameters={"dataframe": df})
+    validation_result = next(iter(checkpoint_result.run_results.values()))
     logging.info(
-        "GE: %d/%d expectations passées.",
-        sum(r.success for r in result.results),
-        len(result.results),
+        "GE: %d/%d expectations passées. Data Docs mis à jour : %s/uncommitted/data_docs/local_site/",
+        sum(r.success for r in validation_result.results),
+        len(validation_result.results),
+        GX_ROOT + "/gx",
     )
 
     # 5. Blocage sélectif — anomalies connues en warn, échecs inattendus bloquants.
@@ -127,7 +186,7 @@ def run_ge_checkpoint_sirene(**kwargs):
         ("expect_column_values_to_not_be_null", "ETAT_ETABLISSEMENT"),
     }
     hard_fails, warn_fails = [], []
-    for r in result.results:
+    for r in validation_result.results:
         if not r.success:
             col = r.expectation_config.kwargs.get("column", "inconnu")
             etype = r.expectation_config.type
