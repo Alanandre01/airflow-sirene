@@ -10,6 +10,7 @@ __pycache__/
 *.env
 .envrc
 .venv
+.venv-ge/
 env/
 venv/
 ENV/
@@ -24,6 +25,9 @@ seeds/
 keys/
 .claude/
 CLAUDE.md
+
+# Great Expectations
+data/*.csv
 
 # Airflow
 config/airflow.cfg

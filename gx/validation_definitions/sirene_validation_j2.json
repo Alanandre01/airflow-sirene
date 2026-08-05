@@ -1,0 +1,22 @@
+{
+  "data": {
+    "asset": {
+      "id": "611308bf-2596-4e97-8a85-00a1a7184685",
+      "name": "sirene_etablissements"
+    },
+    "batch_definition": {
+      "id": "b10f9d06-1eae-4482-87d5-d4747db606d2",
+      "name": "batch_complet"
+    },
+    "datasource": {
+      "id": "2f305da4-c4d3-41d0-992e-c2cfe2349d40",
+      "name": "sirene_pandas"
+    }
+  },
+  "id": "dd23932d-d6d2-4a21-a4d0-bac3df29ea17",
+  "name": "sirene_validation_j2",
+  "suite": {
+    "id": "34ad1bd3-74e7-41b2-8125-367745c21a1d",
+    "name": "sirene_etablissements_suite"
+  }
+}
