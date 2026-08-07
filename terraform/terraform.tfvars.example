@@ -1,0 +1,4 @@
+aws_region         = "eu-west-1"
+snowflake_account  = "XXXXX.eu-west-1"
+snowflake_username = "ALAN"
+snowflake_role     = "SYSADMIN"

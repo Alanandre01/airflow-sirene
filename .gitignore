@@ -35,3 +35,9 @@ config/webserver_config.py
 
 # Docker
 .dockerignore
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
