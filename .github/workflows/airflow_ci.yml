@@ -80,3 +80,43 @@ jobs:
               raise SystemExit(f'{len(errors)} import(s) invalide(s)')
           print('--- Tous les operateurs importables ---')
           "
+
+      - name: Cache pip
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-airflow-${{ hashFiles('Dockerfile') }}
+
+      - name: Install Great Expectations
+        run: pip install "great-expectations==1.19.1" pandas
+
+      - name: Run GE validation on CI fixture
+        # continue-on-error : ce fixture contient 2 SIRET invalides volontaires
+        # (preuve que le gate CRIT bloque bien les données corrompues, cf.
+        # scripts/run_ge_ci.py) -> exit 1 attendu, ne doit pas rougir le job.
+        continue-on-error: true
+        run: python scripts/run_ge_ci.py
+
+      - name: Mirror dags/ to /opt/airflow/dags
+        run: |
+          sudo mkdir -p /opt/airflow
+          sudo ln -s "$GITHUB_WORKSPACE/dags" /opt/airflow/dags
+
+      - name: Install Apache Airflow and providers
+        run: |
+          pip install \
+            "apache-airflow==3.2.1" \
+            "apache-airflow-providers-snowflake==6.13.0" \
+            "apache-airflow-providers-amazon==9.29.0" \
+            "apache-airflow-providers-databricks==7.15.0" \
+            "great-expectations==1.19.1" \
+            pytest
+        env:
+          AIRFLOW_HOME: /tmp/airflow
+
+      - name: Run pytest (38 tests)
+        run: pytest tests/ -q --tb=short
+        env:
+          AIRFLOW_HOME: /tmp/airflow
+          AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+          AIRFLOW__CORE__UNIT_TEST_MODE: "True"
