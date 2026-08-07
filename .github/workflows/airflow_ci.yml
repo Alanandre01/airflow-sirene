@@ -114,6 +114,18 @@ jobs:
         env:
           AIRFLOW_HOME: /tmp/airflow
 
+      - name: Initialize Airflow metadata DB
+        # conftest.py::dagbag charge DagBag(dag_folder="/opt/airflow/dags") ; DagBag.get_dag()
+        # interroge la table "dag" avant tout fallback sur le dict parsé en mémoire -> sans
+        # schéma (jamais migré sur ce runner nu, contrairement aux containers Docker où
+        # Postgres est déjà initialisé), la requête lève OperationalError("no such table: dag")
+        # au lieu de simplement retourner None. La table peut rester vide (pas de sync requis),
+        # get_dag() retombe alors sur self.dags issu du parsing.
+        run: airflow db migrate
+        env:
+          AIRFLOW_HOME: /tmp/airflow
+          AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+
       - name: Run pytest (38 tests)
         run: pytest tests/ -q --tb=short
         env:
