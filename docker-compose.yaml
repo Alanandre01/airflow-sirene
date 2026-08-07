@@ -80,7 +80,6 @@ x-airflow-common:
     AWS_DEFAULT_REGION: eu-west-1
     SNOWFLAKE_ACCOUNT: ${SNOWFLAKE_ACCOUNT}
     SNOWFLAKE_USER: ${SNOWFLAKE_USER}
-    SNOWFLAKE_PASSWORD: ${SNOWFLAKE_PASSWORD}
     SNOWFLAKE_DATABASE: ${SNOWFLAKE_DATABASE}
     SNOWFLAKE_WAREHOUSE: ${SNOWFLAKE_WAREHOUSE}
     SNOWFLAKE_ROLE: ${SNOWFLAKE_ROLE}
@@ -92,7 +91,7 @@ x-airflow-common:
     - ${AIRFLOW_PROJ_DIR:-.}/gx:/opt/airflow/gx
     - ${AIRFLOW_PROJ_DIR:-.}/keys:/opt/airflow/keys:ro
     - ${AIRFLOW_PROJ_DIR:-.}/tests:/opt/airflow/tests
-    - C:/Users/alana/Documents/de-leaning/sirene_nantes:/opt/airflow/dbt/sirene_nantes
+    - ${SIRENE_NANTES_DIR}:/opt/airflow/dbt/sirene_nantes
     - ${DBT_HOME}:/opt/airflow/.dbt
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on:
@@ -116,7 +115,7 @@ services:
       interval: 10s
       retries: 5
       start_period: 5s
-    restart: always
+    restart: unless-stopped
 
   redis:
     # Redis is limited to 7.2-bookworm due to licencing change
@@ -130,7 +129,7 @@ services:
       timeout: 30s
       retries: 50
       start_period: 30s
-    restart: always
+    restart: unless-stopped
 
   airflow-apiserver:
     <<: *airflow-common
@@ -143,7 +142,7 @@ services:
       timeout: 10s
       retries: 5
       start_period: 30s
-    restart: always
+    restart: unless-stopped
     depends_on:
       <<: *airflow-common-depends-on
       airflow-init:
@@ -158,7 +157,7 @@ services:
       timeout: 10s
       retries: 5
       start_period: 30s
-    restart: always
+    restart: unless-stopped
     depends_on:
       <<: *airflow-common-depends-on
       airflow-init:
@@ -173,7 +172,7 @@ services:
       timeout: 10s
       retries: 5
       start_period: 30s
-    restart: always
+    restart: unless-stopped
     depends_on:
       <<: *airflow-common-depends-on
       airflow-init:
@@ -194,7 +193,7 @@ services:
       # Required to handle warm shutdown of the celery workers properly
       # See https://airflow.apache.org/docs/docker-stack/entrypoint.html#signal-propagation
       DUMB_INIT_SETSID: "0"
-    restart: always
+    restart: unless-stopped
     depends_on:
       <<: *airflow-common-depends-on
       airflow-apiserver:
@@ -211,7 +210,7 @@ services:
       timeout: 10s
       retries: 5
       start_period: 30s
-    restart: always
+    restart: unless-stopped
     depends_on:
       <<: *airflow-common-depends-on
       airflow-init:
@@ -323,6 +322,8 @@ services:
       - airflow
     depends_on:
       <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
 
   # You can enable flower by adding "--profile flower" option e.g. docker-compose --profile flower up
   # or by explicitly targeted on the command line e.g. docker-compose up flower.
@@ -340,7 +341,7 @@ services:
       timeout: 10s
       retries: 5
       start_period: 30s
-    restart: always
+    restart: unless-stopped
     depends_on:
       <<: *airflow-common-depends-on
       airflow-init:
