@@ -1,4 +1,17 @@
-aws_region         = "eu-west-1"
-snowflake_account  = "XXXXX.eu-west-1"
-snowflake_username = "ALAN"
-snowflake_role     = "SYSADMIN"
+﻿# aws_region : région AWS où sont déployées les ressources.
+# Valeur actuelle du projet : eu-west-1 (Paris).
+aws_region = "eu-west-1"
+
+# snowflake_account : identifiant du compte Snowflake.
+# Format obligatoire : orgname-accountname
+# Pour le récupérer : SELECT CURRENT_ORGANIZATION_NAME() || '-' || CURRENT_ACCOUNT_NAME();
+snowflake_account = "orgname-accountname"
+
+# snowflake_username : utilisateur Snowflake utilisé par Terraform.
+# Doit correspondre à l'utilisateur qui possède la paire de clés RSA (auth SNOWFLAKE_JWT).
+snowflake_username = "your_snowflake_username"
+
+# snowflake_role : rôle Snowflake accordé à Terraform pour gérer les ressources.
+# Doit disposer d'OWNERSHIP ou d'USAGE sur les ressources déclarées.
+# Valeur retenue : SYSADMIN (rôle TRANSFORMER refusé lors des tests J3-J4).
+snowflake_role = "SYSADMIN"
