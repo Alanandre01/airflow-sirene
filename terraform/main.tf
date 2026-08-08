@@ -17,7 +17,8 @@ provider "aws" {
 }
 
 provider "snowflake" {
-  account  = var.snowflake_account
-  username = var.snowflake_username
-  role     = var.snowflake_role
+  account       = var.snowflake_account
+  username      = var.snowflake_username
+  role          = var.snowflake_role
+  authenticator = "SNOWFLAKE_JWT"
 }
