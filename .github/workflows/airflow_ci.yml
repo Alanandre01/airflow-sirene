@@ -126,7 +126,7 @@ jobs:
           AIRFLOW_HOME: /tmp/airflow
           AIRFLOW__CORE__LOAD_EXAMPLES: "False"
 
-      - name: Run pytest (38 tests)
+      - name: Run pytest (40 tests)
         run: pytest tests/ -q --tb=short
         env:
           AIRFLOW_HOME: /tmp/airflow
